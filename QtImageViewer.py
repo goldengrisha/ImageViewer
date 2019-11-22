@@ -1,4 +1,6 @@
 import os.path
+from storages import *
+from models import *
 from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap, QPalette, QPainter, QScreen
@@ -19,7 +21,7 @@ class KpeWindow(QLabel):
         if event.key() == QtCore.Qt.Key_Return:
             print('yay')
 
-        #QtWidgets.QMessageBox.warning(self, 'MDI', 'keyPressEvent')
+        # QtWidgets.QMessageBox.warning(self, 'MDI', 'keyPressEvent')
         self.parent().keyPressEvent(event)
 
     def mousePressEvent(self, event):
@@ -68,8 +70,8 @@ class KpeWindow(QLabel):
 class QImageViewer(QMainWindow):
     def __init__(self):
         super().__init__()
-
-        #self.printer = QPrinter()
+        self.storage = JsonStorage()
+        # self.printer = QPrinter()
         self.scaleFactor = 0.0
 
         self.imageLabel = KpeWindow(self)
@@ -120,6 +122,9 @@ class QImageViewer(QMainWindow):
             self.printAct.setEnabled(True)
             self.removeAct.setEnabled(True)
             self.fitToWindowAct.setEnabled(True)
+            self.saveSelectedAreaAct.setEnabled(True)
+            self.saveSelectedAreaAndRemoveSourceAct.setEnabled(True)
+
             self.updateActions()
 
             if not self.fitToWindowAct.isChecked():
@@ -137,12 +142,12 @@ class QImageViewer(QMainWindow):
             painter.setWindow(self.imageLabel.pixmap().rect())
             painter.drawPixmap(0, 0, self.imageLabel.pixmap())
 
-    def remove(self):
+    def removeFile(self):
         if os.path.isfile(self.filePath):
-            # os.remove(self.filePath)
-            self.showMessageDialog("The file was removed!!!!")
-            pass
-        pass
+            os.remove(self.filePath)
+            self.showMessageDialog("The file was removed!")
+        else:
+            self.showMessageDialog("The file doesn't exist!")
 
     def zoomIn(self):
         self.scaleImage(1.25)
@@ -169,10 +174,35 @@ class QImageViewer(QMainWindow):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Information)
         msg.setText(message)
-        #msg.setInformativeText("This is additional information")
         msg.setWindowTitle("Information")
         msg.setStandardButtons(QMessageBox.Ok)
         retval = msg.exec_()
+
+    def saveSelectedArea(self):
+
+        upperLeft = (self.imageLabel.upper_left.x(),
+                     self.imageLabel.upper_left.y())
+
+        lowerLeft = (self.imageLabel.upper_left.x(),
+                     self.imageLabel.lower_right.y())
+
+        upperRight = (self.imageLabel.lower_right.x(),
+                      self.imageLabel.upper_left.y())
+
+        lowerRight = (self.imageLabel.lower_right.x(),
+                      self.imageLabel.lower_right.y())
+
+        self.storage.insert(
+            Annotation(
+                os.path.basename(self.filePath),
+                100, 100,
+                [Box(lowerRight[0], lowerRight[1], upperRight[0], upperRight[1])]))
+        QMessageBox.about(self, "ImageViewer", "Image was saved")
+
+    def saveSelectedAreaAndRemoveSource(self):
+        self.saveSelectedArea()
+        self.removeFile()
+        QMessageBox.about(self, "ImageViewer", "Image was saved and removed")
 
     def createActions(self):
         self.openAct = QAction(
@@ -180,7 +210,7 @@ class QImageViewer(QMainWindow):
         self.printAct = QAction(
             "&Print...", self, shortcut="Ctrl+P", enabled=False, triggered=self.print_)
         self.removeAct = QAction(
-            "&Remove...", self, shortcut="Ctrl+R", enabled=False, triggered=self.remove)
+            "&Remove...", self, enabled=False, triggered=self.removeFile)
         self.exitAct = QAction(
             "E&xit", self, shortcut="Ctrl+Q", triggered=self.close)
         self.zoomInAct = QAction(
@@ -188,9 +218,21 @@ class QImageViewer(QMainWindow):
         self.zoomOutAct = QAction(
             "Zoom &Out (25%)", self, shortcut="Ctrl+-", enabled=False, triggered=self.zoomOut)
         self.normalSizeAct = QAction(
-            "&Normal Size", self, shortcut="Ctrl+S", enabled=False, triggered=self.normalSize)
+            "&Normal Size", self, shortcut="Ctrl+N", enabled=False, triggered=self.normalSize)
         self.fitToWindowAct = QAction("&Fit to Window", self, enabled=False, checkable=True, shortcut="Ctrl+F",
                                       triggered=self.fitToWindow)
+        self.saveSelectedAreaAct = QAction(
+            "&Save selected area...",
+            self,
+            shortcut="Ctrl+S",
+            enabled=False,
+            triggered=self.saveSelectedArea)
+        self.saveSelectedAreaAndRemoveSourceAct = QAction(
+            "&Save selected area and remove the source...",
+            self,
+            shortcut="Ctrl+R",
+            enabled=False,
+            triggered=self.saveSelectedAreaAndRemoveSource)
         self.aboutAct = QAction("&About", self, triggered=self.about)
         self.aboutQtAct = QAction("About &Qt", self, triggered=qApp.aboutQt)
 
@@ -209,12 +251,17 @@ class QImageViewer(QMainWindow):
         self.viewMenu.addSeparator()
         self.viewMenu.addAction(self.fitToWindowAct)
 
+        self.shortcutsMenu = QMenu("&Shortcuts", self)
+        self.shortcutsMenu.addAction(self.saveSelectedAreaAndRemoveSourceAct)
+        self.shortcutsMenu.addAction(self.saveSelectedAreaAct)
+
         self.helpMenu = QMenu("&Help", self)
         self.helpMenu.addAction(self.aboutAct)
         self.helpMenu.addAction(self.aboutQtAct)
 
         self.menuBar().addMenu(self.fileMenu)
         self.menuBar().addMenu(self.viewMenu)
+        self.menuBar().addMenu(self.shortcutsMenu)
         self.menuBar().addMenu(self.helpMenu)
 
     def updateActions(self):
