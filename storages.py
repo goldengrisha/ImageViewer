@@ -1,5 +1,6 @@
 import os.path
 import jsonpickle
+import json
 from toolz import filter
 from models import *
 
@@ -43,8 +44,8 @@ class JsonStorage:
                         Box(
                             box['lowerRightX'],
                             box['lowerRightY'],
-                            box['upperRightX'],
-                            box['upperRightY'])
+                            box['upperLeftX'],
+                            box['upperLeftY'])
                         for box in a['boxes']])
                 for a in annotationsList]
 

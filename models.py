@@ -12,8 +12,8 @@ class Annotation:
 class Box:
     def __init__(
             self, lowerRightX: int = None, lowerRightY: int = None,
-            upperRightX: int = None, upperRightY: int = None):
+            upperLeftX: int = None, upperLeftY: int = None):
         self.lowerRightX = lowerRightX
         self.lowerRightY = lowerRightY
-        self.upperRightX = upperRightX
-        self.upperRightY = upperRightY
+        self.upperLeftX = upperLeftX
+        self.upperLeftY = upperLeftY

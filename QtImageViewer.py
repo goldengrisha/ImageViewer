@@ -1,12 +1,13 @@
 import os.path
 from storages import *
 from models import *
+from helpers import *
 from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap, QPalette, QPainter, QScreen
 from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QScrollArea, QMessageBox, QMainWindow, QMenu, QAction, \
-    qApp, QFileDialog
+    qApp, QFileDialog, QScrollBar
 
 
 class KpeWindow(QLabel):
@@ -104,6 +105,10 @@ class QImageViewer(QMainWindow):
         self.resize(800, 600)
 
     def open(self):
+        '''
+            Open a file dialog and give the ability to select a file.
+            Returns None
+        '''
         options = QFileDialog.Options()
         # fileName = QFileDialog.getOpenFileName(self, "Open File", QDir.currentPath())
         self.filePath, _ = QFileDialog.getOpenFileName(self, 'QFileDialog.getOpenFileName()', '',
@@ -123,7 +128,7 @@ class QImageViewer(QMainWindow):
             self.removeAct.setEnabled(True)
             self.fitToWindowAct.setEnabled(True)
             self.saveSelectedAreaAct.setEnabled(True)
-            self.saveSelectedAreaAndRemoveSourceAct.setEnabled(True)
+            self.copyToDataDirectoryAndRemoveSourceAct.setEnabled(True)
 
             self.updateActions()
 
@@ -131,6 +136,10 @@ class QImageViewer(QMainWindow):
                 self.imageLabel.adjustSize()
 
     def print_(self):
+        '''
+            Can be used for printing selected file.
+            Returns None
+        '''
         dialog = QPrintDialog(self.printer, self)
         if dialog.exec_():
             painter = QPainter(self.printer)
@@ -142,24 +151,32 @@ class QImageViewer(QMainWindow):
             painter.setWindow(self.imageLabel.pixmap().rect())
             painter.drawPixmap(0, 0, self.imageLabel.pixmap())
 
-    def removeFile(self):
-        if os.path.isfile(self.filePath):
-            os.remove(self.filePath)
-            self.showMessageDialog("The file was removed!")
-        else:
-            self.showMessageDialog("The file doesn't exist!")
-
     def zoomIn(self):
+        '''
+            Zooming the opened file by a factor 1.25.
+            Returns None
+        '''
         self.scaleImage(1.25)
 
     def zoomOut(self):
+        '''
+            Zooming the opened file by a factor 0.8.
+        '''
         self.scaleImage(0.8)
 
     def normalSize(self):
+        '''
+            Normalize zooming state for the opened file.
+            Returns None
+        '''
         self.imageLabel.adjustSize()
         self.scaleFactor = 1.0
 
     def fitToWindow(self):
+        '''
+            Normalize zoom factor for the current screen
+            Returns None
+        '''
         fitToWindow = self.fitToWindowAct.isChecked()
         self.scrollArea.setWidgetResizable(fitToWindow)
         if not fitToWindow:
@@ -168,9 +185,19 @@ class QImageViewer(QMainWindow):
         self.updateActions()
 
     def about(self):
+        '''
+            Show a message about the app.
+            Returns None
+        '''
         QMessageBox.about(self, "About Image Viewer", "")
 
     def showMessageDialog(self, message):
+        '''Takes a message string and shows popup within the message
+
+        message | string | this string will be used for showing into popup
+
+        Returns None
+        '''
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Information)
         msg.setText(message)
@@ -179,7 +206,9 @@ class QImageViewer(QMainWindow):
         retval = msg.exec_()
 
     def saveSelectedArea(self):
-
+        '''Saves selected area into json file in data folder.
+        Returns None
+        '''
         upperLeft = (self.imageLabel.upper_left.x(),
                      self.imageLabel.upper_left.y())
 
@@ -196,15 +225,41 @@ class QImageViewer(QMainWindow):
             Annotation(
                 os.path.basename(self.filePath),
                 100, 100,
-                [Box(lowerRight[0], lowerRight[1], upperRight[0], upperRight[1])]))
+                [Box(lowerRight[0], lowerRight[1], upperLeft[0], upperLeft[1])]))
         QMessageBox.about(self, "ImageViewer", "Image was saved")
 
-    def saveSelectedAreaAndRemoveSource(self):
-        self.saveSelectedArea()
-        self.removeFile()
-        QMessageBox.about(self, "ImageViewer", "Image was saved and removed")
+    def moveFileToDataDirectory(self, filePathFrom):
+        '''Takes a file path and copy it into data directory
+
+        filePathFrom | string | this string will be used for moving file into data directory
+
+        Returns None
+        '''
+        currentDirectory = os.getcwd()
+        fileFromName = os.path.basename(filePathFrom)
+        separator = '\\' if OSExtensions.isWindows() else '/'
+        filePathTo = f'{currentDirectory}{separator}data{separator}{fileFromName}'
+        FileExtensions.moveFileFromTo(filePathFrom, filePathTo)
+
+    def copyToDataDirectoryAndRemoveSource(self):
+        '''Copy a file into data folder and remover the source file.
+        Returns None
+        '''
+        self.moveFileToDataDirectory(self.filePath)
+        FileExtensions.removeFile(self.filePath)
+        QMessageBox.about(self, "ImageViewer",
+                          "Image was moved to data directory and removed")
+
+    def removeFile(self):
+        '''Remove selected file.
+        Returns None
+        '''
+        FileExtensions.removeFile(self.filepath)
 
     def createActions(self):
+        ''' Handlers for actions.
+        Returns None
+        '''
         self.openAct = QAction(
             "&Open...", self, shortcut="Ctrl+O", triggered=self.open)
         self.printAct = QAction(
@@ -227,16 +282,19 @@ class QImageViewer(QMainWindow):
             shortcut="Ctrl+S",
             enabled=False,
             triggered=self.saveSelectedArea)
-        self.saveSelectedAreaAndRemoveSourceAct = QAction(
-            "&Save selected area and remove the source...",
+        self.copyToDataDirectoryAndRemoveSourceAct = QAction(
+            "&copy to data directory and remove the source...",
             self,
             shortcut="Ctrl+R",
             enabled=False,
-            triggered=self.saveSelectedAreaAndRemoveSource)
+            triggered=self.copyToDataDirectoryAndRemoveSource)
         self.aboutAct = QAction("&About", self, triggered=self.about)
         self.aboutQtAct = QAction("About &Qt", self, triggered=qApp.aboutQt)
 
     def createMenus(self):
+        '''Creates menu for actions.
+        Returns None
+        '''
         self.fileMenu = QMenu("&File", self)
         self.fileMenu.addAction(self.openAct)
         self.fileMenu.addAction(self.printAct)
@@ -252,7 +310,8 @@ class QImageViewer(QMainWindow):
         self.viewMenu.addAction(self.fitToWindowAct)
 
         self.shortcutsMenu = QMenu("&Shortcuts", self)
-        self.shortcutsMenu.addAction(self.saveSelectedAreaAndRemoveSourceAct)
+        self.shortcutsMenu.addAction(
+            self.copyToDataDirectoryAndRemoveSourceAct)
         self.shortcutsMenu.addAction(self.saveSelectedAreaAct)
 
         self.helpMenu = QMenu("&Help", self)
@@ -265,11 +324,20 @@ class QImageViewer(QMainWindow):
         self.menuBar().addMenu(self.helpMenu)
 
     def updateActions(self):
+        '''Update buttons states from enable to disable.
+        Returns None
+        '''
         self.zoomInAct.setEnabled(not self.fitToWindowAct.isChecked())
         self.zoomOutAct.setEnabled(not self.fitToWindowAct.isChecked())
         self.normalSizeAct.setEnabled(not self.fitToWindowAct.isChecked())
 
-    def scaleImage(self, factor):
+    def scaleImage(self, factor: float):
+        '''Takes a factor as float and resizes bars, windows, scrolls
+
+        factor | float | this number will be used for calculating the proportionality
+
+        Returns None
+        '''
         self.scaleFactor *= factor
         self.imageLabel.resize(
             self.scaleFactor * self.imageLabel.pixmap().size())
@@ -280,7 +348,14 @@ class QImageViewer(QMainWindow):
         self.zoomInAct.setEnabled(self.scaleFactor < 3.0)
         self.zoomOutAct.setEnabled(self.scaleFactor > 0.333)
 
-    def adjustScrollBar(self, scrollBar, factor):
+    def adjustScrollBar(self, scrollBar: QScrollBar, factor: float):
+        '''Takes a message string and shows popup within the message
+
+        scrollBar | QScrollBar | this scrollBar object will be used for resizing by a factor
+        factor | float | this number will be used for calculating the proportionality of scrollbars
+
+        Returns None
+        '''
         scrollBar.setValue(int(factor * scrollBar.value()
                                + ((factor - 1) * scrollBar.pageStep() / 2)))
 
