@@ -1,5 +1,6 @@
 import os
 import platform
+from shutil import copyfile
 
 
 class FileExtensions:
@@ -13,7 +14,8 @@ class FileExtensions:
     @staticmethod
     def moveFileFromTo(filePathFrom: str, filePathTo: str):
         if os.path.isfile(filePathFrom):
-            os.popen(f'cp {filePathFrom} {filePathTo}')
+            copyfile(filePathFrom, filePathTo)
+            # os.popen(f'cp {filePathFrom} {filePathTo}')
         else:
             raise FileNotFoundError('Couldn\'t find a file')
 
